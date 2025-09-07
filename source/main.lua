@@ -10,23 +10,28 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
--- make blocks stack
--- make the block move left and right
--- turn the forklift
+-- * tryMove(x, y): check for collisions along each axis (x, y) individually.
+--   for all bodies returned, recursively call tryMove on them, with the current
+--   distance subtracted. once all tryMove calls have returned, call
+--   self:moveWithCollisions(x, y).
+-- * use delta time instead of fixed framerate
+-- * make blocks stack
+-- * make the block move left and right
+-- * turn the forklift
 
 -- ### Collision system rules:
--- - a static body cannot move
--- - a kinematic body moves via external control
--- - a dynamic body can be subjected to forces such as gravity
--- - a dynamic body can be pushed by another dynamic body or a kinematic body
--- - no body may intersect any other body
+-- * a static body cannot move
+-- * a kinematic body moves via external control
+-- * a dynamic body can be subjected to forces such as gravity
+-- * a dynamic body can be pushed by another dynamic body or a kinematic body
+-- * no body may intersect any other body
 --
--- - the ground is a static body
--- - the player (the fork of the forklift) is a kinematic body
--- - packages are dynamic bodies (affected by gravity)
+-- * the ground is a static body
+-- * the player (the fork of the forklift) is a kinematic body
+-- * packages are dynamic bodies (affected by gravity)
 --
 -- ### Collision system internals:
--- - when a kinematic body is going to collide with a dynamic body, it queries
+-- * when a kinematic body is going to collide with a dynamic body, it queries
 --   the dynamic body to move first, before attempting to move itself. this may
 --   be a recursive query.
 

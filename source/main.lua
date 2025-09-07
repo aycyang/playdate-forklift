@@ -2,11 +2,10 @@ import "CoreLibs/graphics"
 
 function init()
   forklift = newForklift(300, 200)
-  fork = newAABB(0, 0, 0, 0)
-  ground = makeGround(200)
+  ground = newGround(200)
   packages = {}
-  table.insert(packages, makePackage(120, 100))
-  table.insert(packages, makePackage(250, 100))
+  table.insert(packages, newPackage(120, 100))
+  table.insert(packages, newPackage(250, 100))
 end
 
 function newForklift(x, y)
@@ -18,6 +17,7 @@ function newForklift(x, y)
   local forkMaxHeight <const> = 120
   local forkLength <const> = 30
   local forkGap <const> = 1
+  local forkRect = playdate.geometry.rect.new(0, 0, forkLength, forkWidth)
   local obj = {
     x = x,
     y = y,
@@ -29,12 +29,10 @@ function newForklift(x, y)
   function obj:move(dx)
     self.x += dx
   end
-  function obj:getForkAABB()
-    return newAABB(
-      self.x - widthBase/2 - forkWidth - forkGap - forkLength,
-      self.y - self.forkHeight,
-      forkLength,
-      forkWidth)
+  function obj:getForkRect()
+    forkRect.x = self.x - widthBase/2 - forkWidth - forkGap - forkLength
+    forkRect.y = self.y - self.forkHeight
+    return forkRect
   end
   function obj:draw(gfx)
     gfx.fillRect(self.x - widthBase/2, self.y - heightBase, widthBase, heightBase)
@@ -48,34 +46,17 @@ function newForklift(x, y)
   return obj
 end
 
-function newAABB(x, y, w, h)
-  return {
-    x = x,
-    y = y,
-    w = w,
-    h = h,
-  }
-end
-
-function makeGround(y, h)
-  local obj = {
-    x = 0,
-    y = y,
-    w = playdate.display.getWidth(),
-    h = h or playdate.display.getHeight(),
-  }
-  function obj:draw(gfx)
-    gfx.drawRect(self.x, self.y, self.w, self.h)
-  end
+function newGround(y, h)
+  local obj = playdate.geometry.rect.new(
+     0,
+     y,
+     playdate.display.getWidth(),
+     h or playdate.display.getHeight())
   return obj
 end
 
-function collide(a, b)
-  return not (a.x + a.w < b.x or b.x + b.w < a.x or a.y + a.h < b.y or b.y + b.h < a.y)
-end
-
 -- (x, y) refers to the bottom center of the package
-function makePackage(x, y, w, h)
+function newPackage(x, y, w, h)
   local obj = {
     x = x,
     y = y,
@@ -91,13 +72,12 @@ function makePackage(x, y, w, h)
     self.vy += 1
     self.y += self.vy
   end
-  function obj:getAABB()
-    return {
-      x = self.x - self.w/2,
-      y = self.y - self.h,
-      w = self.w,
-      h = self.h,
-    }
+  function obj:getRect()
+    return playdate.geometry.rect.new(
+      self.x - self.w/2,
+      self.y - self.h,
+      self.w,
+      self.h)
   end
   return obj
 end
@@ -126,8 +106,6 @@ function playdate.update()
   -- update
   local deltaTime = playdate.getElapsedTime()
   playdate.resetElapsedTime()
-  -- update forklift fork collider
-  fork = forklift:getForkAABB()
   -- gravity and try update position
   for i = 1, #packages do
     packages[i]:update(deltaTime)
@@ -135,13 +113,14 @@ function playdate.update()
   -- collision: push object out
   -- packages with ground
   for i = 1, #packages do
-    if collide(packages[i]:getAABB(), ground) then
+    if ground:intersects(packages[i]:getRect()) then
       packages[i].vy = 0
       packages[i].y = ground.y
     end
   end
+  local fork = forklift:getForkRect()
   for i = 1, #packages do
-    if collide(packages[i]:getAABB(), fork) then
+    if fork:intersects(packages[i]:getRect()) then
       packages[i].vy = 0
       packages[i].y = fork.y
     end
@@ -157,7 +136,7 @@ function playdate.update()
 
   -- draw
   playdate.graphics.clear()
-  ground:draw(playdate.graphics)
+  playdate.graphics.drawRect(ground)
   forklift:draw(playdate.graphics)
   for i = 1, #packages do
     packages[i]:draw(playdate.graphics)

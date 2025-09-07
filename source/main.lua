@@ -1,11 +1,36 @@
 import "CoreLibs/graphics"
 
+--[[ vim config just for this file
+
+set makeprg=./build_and_run.sh
+nnoremap <cr> :make<cr>
+
+--]]
+
+-- TODO
+-- make blocks stack
+-- make the block move left and right
+-- turn the forklift
+
 function init()
-  forklift = newForklift(300, 200)
+  player = newFork(100, 100)
   ground = newGround(200)
   packages = {}
   table.insert(packages, newPackage(120, 100))
   table.insert(packages, newPackage(250, 100))
+end
+
+function newFork(x, y)
+  local width <const> = 30
+  local height <const> = 5
+  local obj = {
+    rect = playdate.geometry.rect.new(x, y, width, height),
+    carried = {}
+  }
+  function obj:draw(gfx)
+    gfx.fillRect(self.rect)
+  end
+  return obj
 end
 
 function newForklift(x, y)
@@ -47,11 +72,12 @@ function newForklift(x, y)
 end
 
 function newGround(y, h)
-  local obj = playdate.geometry.rect.new(
-     0,
-     y,
-     playdate.display.getWidth(),
-     h or playdate.display.getHeight())
+  local obj = {
+    rect = playdate.geometry.rect.new(0, y, playdate.display.getWidth(), h or playdate.display.getHeight())
+  }
+  function obj:draw(gfx)
+    gfx.fillRect(self.rect)
+  end
   return obj
 end
 
@@ -87,20 +113,16 @@ function clamp(n, lower, upper)
   return math.min(math.max(n, lower), upper)
 end
 
--- (x, y) refers to the bottom center of the forklift
-function drawForklift(gfx, x, y, h)
-end
-
 function playdate.update()
   -- handle input
   local change, _ = playdate.getCrankChange()
-  forklift:raiseFork(change)
+  player.rect.y += change
 
   if playdate.buttonIsPressed( playdate.kButtonRight ) then
-    forklift:move(2)
+    player.rect.x += 2
   end
   if playdate.buttonIsPressed( playdate.kButtonLeft ) then
-    forklift:move(-2)
+    player.rect.x -= 2
   end
 
   -- update
@@ -113,16 +135,15 @@ function playdate.update()
   -- collision: push object out
   -- packages with ground
   for i = 1, #packages do
-    if ground:intersects(packages[i]:getRect()) then
+    if ground.rect:intersects(packages[i]:getRect()) then
       packages[i].vy = 0
-      packages[i].y = ground.y
+      packages[i].y = ground.rect.y
     end
   end
-  local fork = forklift:getForkRect()
   for i = 1, #packages do
-    if fork:intersects(packages[i]:getRect()) then
+    if player.rect:intersects(packages[i]:getRect()) then
       packages[i].vy = 0
-      packages[i].y = fork.y
+      packages[i].y = player.rect.y
     end
   end
   -- packages with packages
@@ -136,11 +157,14 @@ function playdate.update()
 
   -- draw
   playdate.graphics.clear()
-  playdate.graphics.drawRect(ground)
-  forklift:draw(playdate.graphics)
+  ground:draw(playdate.graphics)
   for i = 1, #packages do
     packages[i]:draw(playdate.graphics)
   end
+  player:draw(playdate.graphics)
+end
+
+function playdate.debugDraw()
 end
 
 init()

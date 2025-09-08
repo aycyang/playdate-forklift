@@ -112,13 +112,16 @@ function Body:tryMoveByX(x)
     actual = sign(actual) * minDist
   end
   -- Next, check for any dynamic bodies. Recursively call tryMove on them.
+  -- If they didn't move all the way, actual needs to be adjusted.
   local _, _, collisions, numCollisions = self:checkCollisions(self.x + actual, self.y)
   for i = 1, numCollisions do
     if collisions[i].other:getTag() == TAGS.dynamic then
-      collisions[i].other:tryMoveByX(actual)
+      local dist = self:distX(collisions[i].other)
+      collisions[i].other:tryMoveByX(actual - sign(actual) * dist)
     end
   end
   self:moveBy(actual, 0)
+  return actual
 end
 
 class("StaticBody").extends(Body)
@@ -192,7 +195,7 @@ function playdate.update()
   fork:moveWithCollisions(fork.x + dx, fork.y)
 
   -- kinematic bodies
-  bodyA:tryMoveByX(1)
+  bodyA:tryMoveByX(3)
   bodyD:tryMoveByX(7)
 
   -- draw

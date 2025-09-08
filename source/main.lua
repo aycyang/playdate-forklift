@@ -37,45 +37,126 @@ import "CoreLibs/sprites"
 
 local gfx <const> = playdate.graphics
 
-print(gfx.getImageDrawMode())
-print(gfx.kDrawModeCopy)
-gfx.setImageDrawMode(gfx.kDrawModeCopy)
+local TAGS <const> = {
+  static = 1,
+  dynamic = 2
+}
 
-class("Fork").extends(gfx.sprite)
+function sign(n)
+  if n < 0 then
+    return -1
+  elseif n > 0 then
+    return 1
+  else
+    return n
+  end
+end
 
-function Fork:init(x, y, w, h)
-  Fork.super.init(self)
+function playdate.graphics.sprite:distX(other)
+  local aHalfWidth <const> = self.width / 2
+  local aLower <const> = self.x - aHalfWidth
+  local aUpper <const> = self.x + aHalfWidth
+  local bHalfWidth <const> = other.width / 2
+  local bLower <const> = other.x - bHalfWidth
+  local bUpper <const> = other.x + bHalfWidth
+  local result <const> = math.max(aLower - bUpper, bLower - aUpper)
+  return result
+end
+
+function playdate.graphics.sprite:distY(other)
+  local aHalfHeight <const> = self.height / 2
+  local aLower <const> = self.y - aHalfHeight
+  local aUpper <const> = self.y + aHalfHeight
+  local bHalfHeight <const> = other.height / 2
+  local bLower <const> = other.y - bHalfHeight
+  local bUpper <const> = other.y + bHalfHeight
+  local result <const> = math.max(aLower - bUpper, bLower - aUpper)
+  return result
+end
+
+class("Body").extends(gfx.sprite)
+
+function Body:init(x, y, w, h, tag)
+  Body.super.init(self)
+  -- Set the collision response to "overlap" so that
+  -- gfx.sprite:checkCollisions() returns more than one colliding sprite.
+  --
+  -- By default, the collisions response is "freeze", which means there can be
+  -- at most one colliding sprite, so gfx.sprite:checkCollisions() only returns
+  -- the first colliding sprite.
+  --
+  -- This project uses a custom collision algorithm in lieu of
+  -- gfx.sprite:moveWithCollisions(). As such, even though the collision
+  -- response is set to "overlap", a Body is not meant to overlap any other.
+  --
+  -- Source: https://devforum.play.date/t/checkcollisions-only-returns-a-single-collision-even-if-there-should-be-multiple/11505/2
+  self.collisionResponse = gfx.sprite.kCollisionTypeOverlap
   self:moveTo(x, y)
   self:setSize(w, h)
   self:setCollideRect(0, 0, w, h)
+  self:setTag(tag)
+  self:add()
 end
 
-function Fork:draw(x, y, w, h)
-  gfx.fillRect(x, y, w, h)
+function Body:tryMoveByX(x)
+  local actual = x
+  -- First, check for any static bodies. Move only as far as the nearest static body.
+  local _, _, collisions, numCollisions = self:checkCollisions(self.x + x, self.y)
+  local minDist = math.huge
+  for i = 1, numCollisions do
+    if collisions[i].other:getTag() == TAGS.static then
+      minDist = math.min(minDist, self:distX(collisions[i].other))
+    end
+  end
+  if minDist < math.huge then
+    actual = sign(actual) * minDist
+  end
+  -- Next, check for any dynamic bodies. Recursively call tryMove on them.
+  local _, _, collisions, numCollisions = self:checkCollisions(self.x + actual, self.y)
+  for i = 1, numCollisions do
+    if collisions[i].other:getTag() == TAGS.dynamic then
+      collisions[i].other:tryMoveByX(actual)
+    end
+  end
+  self:moveBy(actual, 0)
 end
 
---local forkImage = gfx.image.new("images/fork")
---assert(forkImage)
-local fork = Fork(100, 100, 30, 5)
---fork:setImage(forkImage)
-fork:add()
-
-class("StaticBody").extends(gfx.sprite)
+class("StaticBody").extends(Body)
 
 function StaticBody:init(x, y, w, h)
-  StaticBody.super.init(self)
-  self:setSize(w, h)
-  self:moveTo(x, y)
-  self:setCollideRect(0, 0, w, h)
+  StaticBody.super.init(self, x, y, w, h, TAGS.static)
 end
 
 function StaticBody:draw(x, y, w, h)
   gfx.fillRect(x, y, w, h)
 end
 
-local ground = StaticBody(50, 50, 60, 40)
-ground:add()
+class("DynamicBody").extends(Body)
 
+function DynamicBody:init(x, y, w, h)
+  DynamicBody.super.init(self, x, y, w, h, TAGS.dynamic)
+end
+
+function DynamicBody:draw(x, y, w, h)
+  gfx.drawRect(x, y, w, h)
+end
+
+local fork = StaticBody(100, 100, 30, 5)
+local ground = StaticBody(50, 50, 60, 40)
+local bodyA = StaticBody(200, 80, 10, 40)
+local bodyB = StaticBody(300, 120, 30, 70)
+local bodyC = DynamicBody(280, 50, 50, 50)
+local bodyC_copy1 = DynamicBody(320, 30, 20, 20)
+local bodyC_copy2 = DynamicBody(340, 70, 20, 20)
+local bodyC_copy3 = DynamicBody(350, 35, 20, 20)
+local bodyD = StaticBody(100, 150, 20, 50)
+local bodyE = StaticBody(200, 140, 20, 10)
+local bodyF = StaticBody(202, 155, 20, 10)
+local bodyG = StaticBody(204, 170, 20, 10)
+local bodyH = StaticBody(50, 150, 20, 10)
+local bodyI = StaticBody(20, 140, 20, 20)
+local bodyJ = DynamicBody(50, 135, 20, 10)
+bodyI:tryMoveByX(20)
 
 function init()
 end
@@ -109,6 +190,10 @@ function playdate.update()
     dx = -2
   end
   fork:moveWithCollisions(fork.x + dx, fork.y)
+
+  -- kinematic bodies
+  bodyA:tryMoveByX(1)
+  bodyD:tryMoveByX(7)
 
   -- draw
   --gfx.clear()

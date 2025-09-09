@@ -101,11 +101,14 @@ end
 function Body:tryMoveByX(x)
   local actual = x
   -- First, check for any static bodies. Move only as far as the nearest static body.
+  -- TODO also check for dynamic bodies that are shoved up against a static body.
+  -- TODO need a function that checks how far a body can move, but not actually perform the move.
   local _, _, collisions, numCollisions = self:checkCollisions(self.x + x, self.y)
   local minDist = math.huge
   for i = 1, numCollisions do
     if collisions[i].other:getTag() == TAGS.static then
       minDist = math.min(minDist, self:distX(collisions[i].other))
+      assert(minDist >= 0)
     end
   end
   if minDist < math.huge then
@@ -117,7 +120,7 @@ function Body:tryMoveByX(x)
   for i = 1, numCollisions do
     if collisions[i].other:getTag() == TAGS.dynamic then
       local dist = self:distX(collisions[i].other)
-      collisions[i].other:tryMoveByX(actual - sign(actual) * dist)
+      local childActual = collisions[i].other:tryMoveByX(actual - sign(actual) * dist)
     end
   end
   self:moveBy(actual, 0)
@@ -152,6 +155,7 @@ local bodyC = DynamicBody(280, 50, 50, 50)
 local bodyC_copy1 = DynamicBody(320, 30, 20, 20)
 local bodyC_copy2 = DynamicBody(340, 70, 20, 20)
 local bodyC_copy3 = DynamicBody(350, 35, 20, 20)
+local bodyC_copy4 = StaticBody(380, 35, 20, 20)
 local bodyD = StaticBody(100, 150, 20, 50)
 local bodyE = StaticBody(200, 140, 20, 10)
 local bodyF = StaticBody(202, 155, 20, 10)

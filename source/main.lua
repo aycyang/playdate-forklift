@@ -39,7 +39,7 @@ local gfx <const> = playdate.graphics
 
 local TAGS <const> = {
   static = 1,
-  dynamic = 2
+  dynamic = 2,
 }
 
 function sign(n)
@@ -98,33 +98,40 @@ function Body:init(x, y, w, h, tag)
   self:add()
 end
 
-function Body:tryMoveByX(x)
-  local actual = x
-  -- First, check for any static bodies. Move only as far as the nearest static body.
-  -- TODO also check for dynamic bodies that are shoved up against a static body.
-  -- TODO need a function that checks how far a body can move, but not actually perform the move.
-  local _, _, collisions, numCollisions = self:checkCollisions(self.x + x, self.y)
-  local minDist = math.huge
+-- Without moving, return the maximum distance this body can travel along the
+-- x-axis, up to goalX. Returns a value 0 through goalX.
+function Body:checkMoveByX(goalX, recursionDepth)
+  -- If this is a recursive call on a StaticBody, it should not move.
+  if recursionDepth > 0 and self:getTag() == TAGS.static then return 0 end
+  -- Recursively call checkMoveBy on any Body that is in the way.
+  -- Adjust the return value accordingly.
+  local _, _, collisions, numCollisions = self:checkCollisions(self.x + goalX, self.y)
+  local minX = math.huge
   for i = 1, numCollisions do
-    if collisions[i].other:getTag() == TAGS.static then
-      minDist = math.min(minDist, self:distX(collisions[i].other))
-      assert(minDist >= 0)
-    end
+    local other <const> = collisions[i].other
+    local dist <const> = self:distX(other)
+    assert(dist >= 0)
+    local truncX <const> = dist + other:checkMoveByX(goalX - dist, recursionDepth + 1)
+    minX = math.min(minX, truncX)
   end
-  if minDist < math.huge then
-    actual = sign(actual) * minDist
+  if minX < math.huge then
+    return minX
   end
-  -- Next, check for any dynamic bodies. Recursively call tryMove on them.
-  -- If they didn't move all the way, actual needs to be adjusted.
-  local _, _, collisions, numCollisions = self:checkCollisions(self.x + actual, self.y)
+  return goalX
+end
+
+function Body:tryMoveByX(goalX, recursionDepth)
+  recursionDepth = recursionDepth or 0
+  -- Constrain movement based on how far subsequent bodies can be moved.
+  local actualX = self:checkMoveByX(goalX, recursionDepth)
+  local _, _, collisions, numCollisions = self:checkCollisions(self.x + actualX, self.y)
   for i = 1, numCollisions do
-    if collisions[i].other:getTag() == TAGS.dynamic then
-      local dist = self:distX(collisions[i].other)
-      local childActual = collisions[i].other:tryMoveByX(actual - sign(actual) * dist)
-    end
+    local other <const> = collisions[i].other
+    local dist <const> = self:distX(other)
+    assert(dist >= 0)
+    other:tryMoveByX(actualX - dist, recursionDepth + 1)
   end
-  self:moveBy(actual, 0)
-  return actual
+  self:moveBy(actualX, 0)
 end
 
 class("StaticBody").extends(Body)
@@ -153,7 +160,7 @@ local bodyA = StaticBody(200, 80, 10, 40)
 local bodyB = StaticBody(300, 120, 30, 70)
 local bodyC = DynamicBody(280, 50, 50, 50)
 local bodyC_copy1 = DynamicBody(320, 30, 20, 20)
-local bodyC_copy2 = DynamicBody(340, 70, 20, 20)
+local bodyC_copy2 = DynamicBody(330, 70, 20, 20)
 local bodyC_copy3 = DynamicBody(350, 35, 20, 20)
 local bodyC_copy4 = StaticBody(380, 35, 20, 20)
 local bodyD = StaticBody(100, 150, 20, 50)
@@ -163,6 +170,10 @@ local bodyG = StaticBody(204, 170, 20, 10)
 local bodyH = StaticBody(50, 150, 20, 10)
 local bodyI = StaticBody(20, 140, 20, 20)
 local bodyJ = DynamicBody(50, 135, 20, 10)
+local bodyK = StaticBody(200, 40, 20, 20)
+local bodyL = DynamicBody(160, 40, 20, 20)
+local bodyM = DynamicBody(130, 40, 20, 20)
+local bodyN = DynamicBody(100, 40, 20, 20)
 bodyI:tryMoveByX(20)
 
 function init()
@@ -201,6 +212,7 @@ function playdate.update()
   -- kinematic bodies
   bodyA:tryMoveByX(3)
   bodyD:tryMoveByX(7)
+  bodyK:tryMoveByX(-2)
 
   -- draw
   --gfx.clear()

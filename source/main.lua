@@ -97,6 +97,7 @@ function Body:init(x, y, w, h, tag)
   self:setSize(w, h)
   self:setCollideRect(0, 0, w, h)
   self:setTag(tag)
+  self.carried = {}
   self:add()
 end
 
@@ -108,33 +109,56 @@ function Body:checkMoveByY(goalY, recursionDepth)
   -- Recursively call checkMoveBy on any Body that is in the way.
   -- Adjust the return value accordingly.
   local _, _, collisions, numCollisions = self:checkCollisions(self.x, self.y + goalY)
+  local potentiallyConstrainingBodies = {}
   local minY = math.huge
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distY(other)
-    warnIfNot(dist >= 0, "x distance was negative; maybe a body clipped inside another body?")
+    warnIfNot(dist >= 0, "y distance was negative; maybe a body clipped inside another body?")
     local signedDist <const> = sign(goalY) * dist
-    local truncY <const> = signedDist + other:checkMoveByY(goalY - signedDist, recursionDepth + 1)
+    local otherGoalDist <const> = goalY - signedDist
+    local otherActualDist <const> = other:checkMoveByY(otherGoalDist, recursionDepth + 1)
+    local truncY <const> = signedDist + otherActualDist
+    if otherGoalDist ~= otherActualDist then
+      potentiallyConstrainingBodies[other] = truncY
+    end
     if math.abs(truncY) < math.abs(minY) then
       minY = truncY
     end
   end
   if minY < math.huge then
-    return minY
+    local constrainingBodies = {}
+    for other, truncY in pairs(potentiallyConstrainingBodies) do
+      if truncY == minY then
+        table.insert(constrainingBodies, other)
+      end
+    end
+    return minY, constrainingBodies
   end
-  return goalY
+  return goalY, {}
+end
+
+function Body:markCarriedY(deltaY)
+  local _, _, collisions, numCollisions = self:checkCollisions(self.x, self.y + deltaY)
+  for i = 1, numCollisions do
+    table.insert(collisions[i].other.carried, self)
+  end
 end
 
 function Body:tryMoveByY(goalY, verbose, recursionDepth)
   recursionDepth = recursionDepth or 0
   -- Constrain movement based on how far subsequent bodies can be moved.
-  local actualY = self:checkMoveByY(goalY, recursionDepth)
+  local actualY, constrainingBodies = self:checkMoveByY(goalY, recursionDepth)
+  for i = 1, #constrainingBodies do
+    table.insert(constrainingBodies[i].carried, self)
+  end
+  local signY = sign(goalY)
   local _, _, collisions, numCollisions = self:checkCollisions(self.x, self.y + actualY)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distY(other)
-    warnIfNot(dist >= 0, "x distance was negative; maybe a body clipped inside another body?")
-    local signedDist <const> = sign(goalY) * dist
+    warnIfNot(dist >= 0, "y distance was negative; maybe a body clipped inside another body?")
+    local signedDist <const> = signY * dist
     other:tryMoveByY(actualY - signedDist, recursionDepth + 1)
   end
   if verbose and actualY ~= goalY then print("goalY="..goalY..", actualY="..actualY) end
@@ -202,30 +226,13 @@ function DynamicBody:draw(x, y, w, h)
   gfx.drawRect(x, y, w, h)
 end
 
-local fork = StaticBody(100, 100, 30, 20)
-local ground = StaticBody(50, 50, 60, 40)
-local bodyA = StaticBody(200, 80, 10, 40)
-local bodyB = StaticBody(300, 120, 30, 70)
-local bodyC = DynamicBody(280, 50, 50, 50)
-local bodyC_copy1 = DynamicBody(320, 30, 20, 20)
-local bodyC_copy2 = DynamicBody(330, 70, 20, 20)
-local bodyC_copy3 = DynamicBody(350, 35, 20, 20)
-local bodyC_copy4 = StaticBody(380, 35, 20, 20)
-local bodyD = StaticBody(100, 150, 20, 50)
-local bodyE = StaticBody(200, 140, 20, 10)
-local bodyF = StaticBody(202, 155, 20, 10)
-local bodyG = StaticBody(204, 170, 20, 10)
-local bodyH = StaticBody(50, 150, 20, 10)
-local bodyI = StaticBody(20, 140, 20, 20)
-local bodyJ = DynamicBody(50, 135, 20, 10)
-local bodyK = StaticBody(200, 40, 20, 20)
-local bodyL = DynamicBody(160, 40, 20, 20)
-local bodyM = DynamicBody(130, 40, 20, 20)
-local bodyN = DynamicBody(100, 40, 20, 20)
-local bodyO = DynamicBody(140, 80, 20, 20)
-local bodyP = StaticBody(50, 110, 20, 20)
-local bodyQ = DynamicBody(50, 85, 20, 20)
-bodyI:tryMoveByX(20)
+local fork = StaticBody(100, 180, 50, 20)
+local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
+local bodyA = StaticBody(200, 120, 50, 50)
+local dynBodies = {
+  DynamicBody(100, 100, 40, 40),
+  DynamicBody(100, 50, 40, 40),
+}
 
 function init()
 end
@@ -233,6 +240,12 @@ end
 function playdate.update()
   local deltaTime = playdate.getElapsedTime()
   playdate.resetElapsedTime()
+
+  -- Carried is updated by tryMove calls below.
+  -- Reset carried for all sprites, otherwise carried grows as duplicates are added.
+  gfx.sprite.performOnAllSprites(function(sprite)
+    sprite.carried = {}
+  end)
 
   local dx = 0
   local dy = 0
@@ -260,15 +273,26 @@ function playdate.update()
   end
   fork:tryMoveByX(dx)
 
-  -- kinematic bodies
-  bodyA:tryMoveByX(3)
-  bodyD:tryMoveByX(7)
-  bodyK:tryMoveByX(-2)
-  bodyP:tryMoveByY(-2)
+  -- handle dynamic body gravity
+  for i = 1, #dynBodies do
+    dynBodies[i]:tryMoveByY(2)
+  end
+
+  print(#fork.carried)
 
   -- draw
   --gfx.clear()
   gfx.sprite.update()
+end
+
+function playdate.debugDraw()
+  gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
+  gfx.clear(gfx.kColorBlack)
+  gfx.sprite.performOnAllSprites(function(sprite)
+    local x <const> = sprite.x - sprite.width / 2
+    local y <const> = sprite.y - sprite.height / 2 - 20
+    gfx.drawText(#sprite.carried, x, y)
+  end)
 end
 
 init()

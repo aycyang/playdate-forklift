@@ -213,7 +213,7 @@ function StaticBody:init(x, y, w, h)
 end
 
 function StaticBody:draw(x, y, w, h)
-  gfx.fillRect(x, y, w, h)
+  gfx.fillRect(0, 0, self.width, self.height)
 end
 
 class("DynamicBody").extends(Body)
@@ -223,7 +223,7 @@ function DynamicBody:init(x, y, w, h)
 end
 
 function DynamicBody:draw(x, y, w, h)
-  gfx.drawRect(x, y, w, h)
+  gfx.drawRect(0, 0, self.width, self.height)
 end
 
 local fork = StaticBody(100, 180, 50, 20)
@@ -231,7 +231,8 @@ local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
 local bodyA = StaticBody(200, 120, 50, 50)
 local dynBodies = {
   DynamicBody(100, 100, 40, 40),
-  DynamicBody(100, 50, 40, 40),
+  DynamicBody(80, 50, 20, 30),
+  DynamicBody(120, 50, 20, 40),
 }
 
 function init()
@@ -278,20 +279,25 @@ function playdate.update()
     dynBodies[i]:tryMoveByY(2)
   end
 
-  print(#fork.carried)
 
   -- draw
   --gfx.clear()
   gfx.sprite.update()
-end
 
-function playdate.debugDraw()
-  gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
-  gfx.clear(gfx.kColorBlack)
   gfx.sprite.performOnAllSprites(function(sprite)
     local x <const> = sprite.x - sprite.width / 2
     local y <const> = sprite.y - sprite.height / 2 - 20
     gfx.drawText(#sprite.carried, x, y)
+  end)
+end
+
+function playdate.debugDraw()
+  --gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
+  --gfx.clear(gfx.kColorBlack)
+  gfx.sprite.performOnAllSprites(function(sprite)
+    local x <const> = sprite.x - sprite.width / 2
+    local y <const> = sprite.y - sprite.height / 2 - 20
+    --gfx.drawText(#sprite.carried, x, y)
   end)
 end
 

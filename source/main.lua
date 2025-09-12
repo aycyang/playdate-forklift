@@ -10,8 +10,8 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
--- * gravity
--- * static friction
+-- * bug: crashes when you use the crank
+-- * bug: crashes when you push a stack of boxes up into a static body
 -- * use delta time instead of fixed framerate
 -- * turn the forklift
 
@@ -204,6 +204,9 @@ function Body:tryMoveByX(goalX, verbose, recursionDepth)
   end
   if verbose and actualX ~= goalX then print("goalX="..goalX..", actualX="..actualX) end
   self:moveBy(actualX, 0)
+  for i = 1, #self.carried do
+    self.carried[i]:tryMoveByX(actualX, verbose, 0)
+  end
 end
 
 class("StaticBody").extends(Body)
@@ -229,6 +232,7 @@ end
 local fork = StaticBody(100, 180, 50, 20)
 local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
 local bodyA = StaticBody(200, 120, 50, 50)
+local bodyA = StaticBody(200, 120, 50, 50)
 local dynBodies = {
   DynamicBody(100, 100, 40, 40),
   DynamicBody(80, 50, 20, 30),
@@ -242,28 +246,35 @@ function playdate.update()
   local deltaTime = playdate.getElapsedTime()
   playdate.resetElapsedTime()
 
-  -- Carried is updated by tryMove calls below.
-  -- Reset carried for all sprites, otherwise carried grows as duplicates are added.
-  gfx.sprite.performOnAllSprites(function(sprite)
-    sprite.carried = {}
-  end)
-
   local dx = 0
   local dy = 0
 
   -- handle player y-axis movement
   if playdate.isCrankDocked() then
     if playdate.buttonIsPressed(playdate.kButtonUp) then
-      dy = -2
+      dy = -3
     end
     if playdate.buttonIsPressed(playdate.kButtonDown) then
-      dy = 2
+      dy = 3
     end
   else
     local change, _ = playdate.getCrankChange()
     dy = -change
   end
   fork:tryMoveByY(dy)
+
+  -- Carried is updated by gravity update below.
+  -- Reset carried for all sprites, otherwise carried grows as duplicates are added.
+  gfx.sprite.performOnAllSprites(function(sprite)
+    sprite.carried = {}
+  end)
+
+  -- Handle dynamic body gravity.
+  -- This updates each Body's `carried` attribute, so it must happen before
+  -- x-axis movement for static friction to work.
+  for i = 1, #dynBodies do
+    dynBodies[i]:tryMoveByY(2)
+  end
 
   -- handle player x-axis movement
   if playdate.buttonIsPressed(playdate.kButtonRight) then
@@ -274,14 +285,8 @@ function playdate.update()
   end
   fork:tryMoveByX(dx)
 
-  -- handle dynamic body gravity
-  for i = 1, #dynBodies do
-    dynBodies[i]:tryMoveByY(2)
-  end
-
 
   -- draw
-  --gfx.clear()
   gfx.sprite.update()
 
   gfx.sprite.performOnAllSprites(function(sprite)

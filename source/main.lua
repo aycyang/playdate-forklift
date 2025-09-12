@@ -10,7 +10,6 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
--- * use delta time instead of fixed framerate
 -- * turn the forklift
 
 -- ### Collision system rules:
@@ -161,6 +160,13 @@ function Body:tryMoveByY(goalY, verbose, recursionDepth)
   end
   if verbose and actualY ~= goalY then print("goalY="..goalY..", actualY="..actualY) end
   self:moveBy(0, actualY)
+  -- If carrying Body is moving down faster than gravity, carried objects "stick" to it
+  -- If carrying Body is moving up, propagation was already handled in the above recursive calls, so do nothing here
+  if actualY > 0 then
+    for i = 1, #self.carried do
+      self.carried[i]:tryMoveByY(actualY, verbose, 0)
+    end
+  end
 end
 
 -- Without moving, return the maximum distance this body can travel along the
@@ -284,10 +290,10 @@ function playdate.update()
 
   -- handle player x-axis movement
   if playdate.buttonIsPressed(playdate.kButtonRight) then
-    dx = 2
+    dx = 3
   end
   if playdate.buttonIsPressed(playdate.kButtonLeft) then
-    dx = -2
+    dx = -3
   end
   fork:tryMoveByX(dx)
 

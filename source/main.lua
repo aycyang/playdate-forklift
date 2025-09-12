@@ -205,17 +205,25 @@ function Body:tryMoveByX(goalX, verbose, recursionDepth)
   assert(math.type(goalX) == "integer")
   recursionDepth = recursionDepth or 0
   -- Constrain movement based on how far subsequent bodies can be moved.
+  local signX <const> = sign(goalX)
   local actualX = self:checkMoveByX(goalX, recursionDepth)
   local _, _, collisions, numCollisions = self:checkCollisions(self.x + actualX, self.y)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distX(other)
     warnIfNot(dist >= 0, "x distance was negative; maybe a body clipped inside another body?")
-    local signedDist <const> = sign(goalX) * dist
+    local signedDist <const> = signX * dist
     other:tryMoveByX(actualX - signedDist, verbose, recursionDepth + 1)
   end
   if verbose and actualX ~= goalX then print("goalX="..goalX..", actualX="..actualX) end
   self:moveBy(actualX, 0)
+  -- Move carried Bodies as if by static friction.
+  --
+  -- To avoid double-moving carried Bodies, sort left-to-right if moving left,
+  -- right-to-left if moving right, so the outermost Bodies move first.
+  table.sort(self.carried, function(a, b)
+    return signX * a.x > signX * b.x
+  end)
   for i = 1, #self.carried do
     self.carried[i]:tryMoveByX(actualX, verbose, 0)
   end

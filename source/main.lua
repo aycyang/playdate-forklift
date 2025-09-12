@@ -10,8 +10,6 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
--- * bug: crashes when you use the crank
--- * bug: crashes when you push a stack of boxes up into a static body
 -- * use delta time instead of fixed framerate
 -- * turn the forklift
 
@@ -114,7 +112,7 @@ function Body:checkMoveByY(goalY, recursionDepth)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distY(other)
-    warnIfNot(dist >= 0, "y distance was negative; maybe a body clipped inside another body?")
+    --warnIfNot(dist >= 0, "dist="..dist.."\ty distance was negative; maybe a body clipped inside another body?")
     local signedDist <const> = sign(goalY) * dist
     local otherGoalDist <const> = goalY - signedDist
     local otherActualDist <const> = other:checkMoveByY(otherGoalDist, recursionDepth + 1)
@@ -157,7 +155,7 @@ function Body:tryMoveByY(goalY, verbose, recursionDepth)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distY(other)
-    warnIfNot(dist >= 0, "y distance was negative; maybe a body clipped inside another body?")
+    --warnIfNot(dist >= 0, "dist="..dist.."\ty distance was negative; maybe a body clipped inside another body?")
     local signedDist <const> = signY * dist
     other:tryMoveByY(actualY - signedDist, recursionDepth + 1)
   end
@@ -240,6 +238,7 @@ local dynBodies = {
 }
 
 function init()
+  crankChangeAccumulator = 0
 end
 
 function playdate.update()
@@ -259,7 +258,14 @@ function playdate.update()
     end
   else
     local change, _ = playdate.getCrankChange()
-    dy = -change
+    crankChangeAccumulator += change
+    if crankChangeAccumulator <= -1 then
+      dy = math.ceil(crankChangeAccumulator)
+    end
+    if crankChangeAccumulator >= 1 then
+      dy = math.floor(crankChangeAccumulator)
+    end
+    crankChangeAccumulator -= dy
   end
   fork:tryMoveByY(dy)
 

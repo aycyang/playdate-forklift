@@ -59,7 +59,7 @@ function playdate.graphics.sprite:distX(other)
   local bLower <const> = other.x - bHalfWidth
   local bUpper <const> = other.x + bHalfWidth
   local result <const> = math.max(aLower - bUpper, bLower - aUpper)
-  return result
+  return math.tointeger(result)
 end
 
 function playdate.graphics.sprite:distY(other)
@@ -70,7 +70,7 @@ function playdate.graphics.sprite:distY(other)
   local bLower <const> = other.y - bHalfHeight
   local bUpper <const> = other.y + bHalfHeight
   local result <const> = math.max(aLower - bUpper, bLower - aUpper)
-  return result
+  return math.tointeger(result)
 end
 
 class("Body").extends(gfx.sprite)
@@ -143,6 +143,7 @@ function Body:markCarriedY(deltaY)
 end
 
 function Body:tryMoveByY(goalY, verbose, recursionDepth)
+  assert(math.type(goalY) == "integer")
   recursionDepth = recursionDepth or 0
   -- Constrain movement based on how far subsequent bodies can be moved.
   local actualY, constrainingBodies = self:checkMoveByY(goalY, recursionDepth)
@@ -156,12 +157,14 @@ function Body:tryMoveByY(goalY, verbose, recursionDepth)
     local dist <const> = self:distY(other)
     --warnIfNot(dist >= 0, "dist="..dist.."\ty distance was negative; maybe a body clipped inside another body?")
     local signedDist <const> = signY * dist
-    other:tryMoveByY(actualY - signedDist, recursionDepth + 1)
+    other:tryMoveByY(actualY - signedDist, verbose, recursionDepth + 1)
   end
   if verbose and actualY ~= goalY then print("goalY="..goalY..", actualY="..actualY) end
   self:moveBy(0, actualY)
-  -- If carrying Body is moving down faster than gravity, carried objects "stick" to it
-  -- If carrying Body is moving up, propagation was already handled in the above recursive calls, so do nothing here
+  -- Weird exception for the sake of gamefeel: vertically stacked Bodies stick
+  -- together when moving down, even if it's faster than gravity. If the
+  -- carrying Body is moving up, propagation was already handled in the above
+  -- recursive calls, so do nothing here.
   if actualY > 0 then
     for i = 1, #self.carried do
       self.carried[i]:tryMoveByY(actualY, verbose, 0)
@@ -195,6 +198,7 @@ function Body:checkMoveByX(goalX, recursionDepth)
 end
 
 function Body:tryMoveByX(goalX, verbose, recursionDepth)
+  assert(math.type(goalX) == "integer")
   recursionDepth = recursionDepth or 0
   -- Constrain movement based on how far subsequent bodies can be moved.
   local actualX = self:checkMoveByX(goalX, recursionDepth)
@@ -204,7 +208,7 @@ function Body:tryMoveByX(goalX, verbose, recursionDepth)
     local dist <const> = self:distX(other)
     warnIfNot(dist >= 0, "x distance was negative; maybe a body clipped inside another body?")
     local signedDist <const> = sign(goalX) * dist
-    other:tryMoveByX(actualX - signedDist, recursionDepth + 1)
+    other:tryMoveByX(actualX - signedDist, verbose, recursionDepth + 1)
   end
   if verbose and actualX ~= goalX then print("goalX="..goalX..", actualX="..actualX) end
   self:moveBy(actualX, 0)
@@ -254,7 +258,7 @@ function playdate.update()
   local dx = 0
   local dy = 0
 
-  -- handle player y-axis movement
+  -- Handle player y-axis movement.
   if playdate.isCrankDocked() then
     if playdate.buttonIsPressed(playdate.kButtonUp) then
       dy = -3
@@ -275,8 +279,8 @@ function playdate.update()
   end
   fork:tryMoveByY(dy)
 
-  -- Carried is updated by gravity update below.
-  -- Reset carried for all sprites, otherwise carried grows as duplicates are added.
+  -- `carried` is updated by gravity update below.
+  -- Reset carried for all sprites, otherwise `carried` grows unbounded.
   gfx.sprite.performOnAllSprites(function(sprite)
     sprite.carried = {}
   end)
@@ -288,7 +292,7 @@ function playdate.update()
     dynBodies[i]:tryMoveByY(2)
   end
 
-  -- handle player x-axis movement
+  -- Handle player x-axis movement.
   if playdate.buttonIsPressed(playdate.kButtonRight) then
     dx = 3
   end
@@ -297,25 +301,8 @@ function playdate.update()
   end
   fork:tryMoveByX(dx)
 
-
   -- draw
   gfx.sprite.update()
-
-  gfx.sprite.performOnAllSprites(function(sprite)
-    local x <const> = sprite.x - sprite.width / 2
-    local y <const> = sprite.y - sprite.height / 2 - 20
-    gfx.drawText(#sprite.carried, x, y)
-  end)
-end
-
-function playdate.debugDraw()
-  --gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
-  --gfx.clear(gfx.kColorBlack)
-  gfx.sprite.performOnAllSprites(function(sprite)
-    local x <const> = sprite.x - sprite.width / 2
-    local y <const> = sprite.y - sprite.height / 2 - 20
-    --gfx.drawText(#sprite.carried, x, y)
-  end)
 end
 
 init()

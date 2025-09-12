@@ -10,6 +10,9 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
+-- * attach bodies together
+-- * put bodies in different groups
+-- * draw the forklift
 -- * turn the forklift
 
 -- ### Collision system rules:
@@ -38,6 +41,7 @@ local TAGS <const> = {
 local GRAVITY <const> = 5
 local PLAYER_SPEED_X <const> = 2
 local PLAYER_SPEED_Y <const> = 2
+local CRANK_SCALE <const> = 16
 
 function warnIfNot(cond, msg)
   if not cond then
@@ -283,13 +287,14 @@ function playdate.update()
   else
     local change, _ = playdate.getCrankChange()
     crankChangeAccumulator += change
-    if crankChangeAccumulator <= -1 then
-      dy = math.ceil(crankChangeAccumulator)
+    local scaledChange <const> = crankChangeAccumulator / CRANK_SCALE
+    if scaledChange <= -1 then
+      dy = math.ceil(scaledChange)
     end
-    if crankChangeAccumulator >= 1 then
-      dy = math.floor(crankChangeAccumulator)
+    if scaledChange >= 1 then
+      dy = math.floor(scaledChange)
     end
-    crankChangeAccumulator -= dy
+    crankChangeAccumulator -= dy * CRANK_SCALE
   end
   fork:tryMoveByY(dy)
 

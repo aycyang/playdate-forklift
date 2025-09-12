@@ -35,6 +35,10 @@ local TAGS <const> = {
   dynamic = 2,
 }
 
+local GRAVITY <const> = 5
+local PLAYER_SPEED_X <const> = 2
+local PLAYER_SPEED_Y <const> = 2
+
 function warnIfNot(cond, msg)
   if not cond then
     error("warning: " .. msg)
@@ -248,6 +252,8 @@ local dynBodies = {
 }
 
 function init()
+  -- This is a global variable that accumulates crank change and dispenses the
+  -- integral portion when it is less than -1 or greater than 1.
   crankChangeAccumulator = 0
 end
 
@@ -261,10 +267,10 @@ function playdate.update()
   -- Handle player y-axis movement.
   if playdate.isCrankDocked() then
     if playdate.buttonIsPressed(playdate.kButtonUp) then
-      dy = -3
+      dy = -PLAYER_SPEED_Y
     end
     if playdate.buttonIsPressed(playdate.kButtonDown) then
-      dy = 3
+      dy = PLAYER_SPEED_Y
     end
   else
     local change, _ = playdate.getCrankChange()
@@ -289,15 +295,15 @@ function playdate.update()
   -- This updates each Body's `carried` attribute, so it must happen before
   -- x-axis movement for static friction to work.
   for i = 1, #dynBodies do
-    dynBodies[i]:tryMoveByY(2)
+    dynBodies[i]:tryMoveByY(GRAVITY)
   end
 
   -- Handle player x-axis movement.
   if playdate.buttonIsPressed(playdate.kButtonRight) then
-    dx = 3
+    dx = PLAYER_SPEED_X
   end
   if playdate.buttonIsPressed(playdate.kButtonLeft) then
-    dx = -3
+    dx = -PLAYER_SPEED_X
   end
   fork:tryMoveByX(dx)
 

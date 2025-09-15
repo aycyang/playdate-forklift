@@ -82,6 +82,7 @@ function playdate.graphics.sprite:distY(other)
 end
 
 class("Body").extends(gfx.sprite)
+Body.nextId = 0
 
 function Body:init(x, y, w, h, tag)
   Body.super.init(self)
@@ -103,7 +104,15 @@ function Body:init(x, y, w, h, tag)
   self:setCollideRect(0, 0, w, h)
   self:setTag(tag)
   self.carried = {}
+  self.attached = {}
+  self.id = Body.nextId
+  Body.nextId += 1
   self:add()
+end
+
+function Body:attach(other)
+  self.attached[other] = true
+  other.attached[self] = true
 end
 
 -- Without moving, return the maximum distance this body can travel along the
@@ -255,13 +264,11 @@ end
 
 local fork = StaticBody(100, 180, 50, 20)
 local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
-local bodyA = StaticBody(200, 120, 50, 50)
-local bodyA = StaticBody(200, 120, 50, 50)
-local dynBodies = {
-  DynamicBody(100, 100, 40, 40),
-  DynamicBody(80, 50, 20, 30),
-  DynamicBody(120, 50, 20, 40),
-}
+local dynBodies = {}
+local dBodyA = DynamicBody(200, 120, 20, 20)
+local dBodyB = DynamicBody(200, 60, 20, 20)
+dBodyA:attach(dBodyB)
+table.insert(dynBodies, dBodyA)
 
 function init()
   -- This is a global variable that accumulates crank change and dispenses the
@@ -320,8 +327,27 @@ function playdate.update()
   end
   fork:tryMoveByX(dx)
 
+  -- Check no sprites are overlapping.
+  gfx.sprite.performOnAllSprites(function(sprite)
+    assert(#sprite:overlappingSprites() == 0, "Sprite #"..sprite.id.." has overlapping sprites")
+  end)
+
   -- draw
   gfx.sprite.update()
+end
+
+function playdate.debugDraw()
+  -- Denote constraints between bodies.
+  gfx.sprite.performOnAllSprites(function(sprite)
+    for other, _ in pairs(sprite.attached) do
+      gfx.drawLine(sprite.x, sprite.y, other.x, other.y)
+    end
+  end)
+  -- Label bodies with IDs.
+  gfx.setImageDrawMode(gfx.kDrawModeFillWhite)
+  gfx.sprite.performOnAllSprites(function(sprite)
+    gfx.drawText(sprite.id, sprite.x + sprite.width / 2 + 2, sprite.y - sprite.height / 2)
+  end)
 end
 
 init()

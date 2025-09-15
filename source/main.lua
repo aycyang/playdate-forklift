@@ -43,12 +43,6 @@ local PLAYER_SPEED_X <const> = 2
 local PLAYER_SPEED_Y <const> = 2
 local CRANK_SCALE <const> = 16
 
-function warnIfNot(cond, msg)
-  if not cond then
-    error("warning: " .. msg)
-  end
-end
-
 function sign(n)
   if n < 0 then
     return -1
@@ -128,7 +122,7 @@ function Body:checkMoveByY(goalY, recursionDepth)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distY(other)
-    --warnIfNot(dist >= 0, "dist="..dist.."\ty distance was negative; maybe a body clipped inside another body?")
+    assert(dist >= 0, "id="..self.id.."\tdistY="..dist)
     local signedDist <const> = sign(goalY) * dist
     local otherGoalDist <const> = goalY - signedDist
     local otherActualDist <const> = other:checkMoveByY(otherGoalDist, recursionDepth + 1)
@@ -172,7 +166,7 @@ function Body:tryMoveByY(goalY, verbose, recursionDepth)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distY(other)
-    --warnIfNot(dist >= 0, "dist="..dist.."\ty distance was negative; maybe a body clipped inside another body?")
+    assert(dist >= 0, "id="..self.id.."\tdistY="..dist)
     local signedDist <const> = signY * dist
     other:tryMoveByY(actualY - signedDist, verbose, recursionDepth + 1)
   end
@@ -201,7 +195,7 @@ function Body:checkMoveByX(goalX, recursionDepth)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distX(other)
-    warnIfNot(dist >= 0, "x distance was negative; maybe a body clipped inside another body?")
+    assert(dist >= 0, "id="..self.id.."\tdistX="..dist)
     local signedDist <const> = sign(goalX) * dist
     local truncX <const> = signedDist + other:checkMoveByX(goalX - signedDist, recursionDepth + 1)
     if math.abs(truncX) < math.abs(minX) then
@@ -224,7 +218,7 @@ function Body:tryMoveByX(goalX, verbose, recursionDepth)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
     local dist <const> = self:distX(other)
-    warnIfNot(dist >= 0, "x distance was negative; maybe a body clipped inside another body?")
+    assert(dist >= 0, "id="..self.id.."\tdistX="..dist)
     local signedDist <const> = signX * dist
     other:tryMoveByX(actualX - signedDist, verbose, recursionDepth + 1)
   end

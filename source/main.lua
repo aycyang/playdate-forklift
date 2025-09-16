@@ -10,11 +10,10 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
--- * attach bodies together
 -- * put bodies in different groups
 -- * draw the forklift
 -- * turn the forklift
-
+--
 -- ### Collision system rules:
 -- * a static body cannot move
 -- * a kinematic body moves via external control
@@ -167,13 +166,6 @@ function Body:checkMoveByY(goalY, recursionDepth, checked)
   return goalY, {}
 end
 
-function Body:markCarriedY(deltaY)
-  local _, _, collisions, numCollisions = self:checkCollisions(self.x, self.y + deltaY)
-  for i = 1, numCollisions do
-    table.insert(collisions[i].other.carried, self)
-  end
-end
-
 function Body:tryMoveByY(goalY, verbose, recursionDepth, checked)
   assert(math.type(goalY) == "integer")
   checked = checked or {}
@@ -211,6 +203,7 @@ function Body:tryMoveByY(goalY, verbose, recursionDepth, checked)
       self.carried[i]:tryMoveByY(actualY, verbose, 0)
     end
   end
+  return actualY
 end
 
 -- Without moving, return the maximum distance this body can travel along the
@@ -307,12 +300,13 @@ function DynamicBody:draw(x, y, w, h)
   gfx.drawRect(0, 0, self.width, self.height)
 end
 
-local fork = StaticBody(200, 200, 50, 20)
+local fork = StaticBody(200, 100, 50, 20)
 local bodyA = StaticBody(100, 80, 50, 40)
+local bodyB = StaticBody(300, 160, 50, 40)
 local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
 local dynBodies = {}
-local dBodyA = DynamicBody(200, 120, 20, 20)
-local dBodyB = DynamicBody(200, 60, 20, 20)
+local dBodyB = DynamicBody(200, 120, 20, 20)
+local dBodyA = DynamicBody(200, 60, 20, 20)
 dBodyA:attach(dBodyB)
 table.insert(dynBodies, dBodyA)
 
@@ -361,7 +355,12 @@ function playdate.update()
   -- This updates each Body's `carried` attribute, so it must happen before
   -- x-axis movement for static friction to work.
   for i = 1, #dynBodies do
-    dynBodies[i]:tryMoveByY(GRAVITY)
+    local actualDistMoved = dynBodies[i]:tryMoveByY(GRAVITY)
+    if actualDistMoved < GRAVITY then
+      for other in pairs(dynBodies[i].attached) do
+        other:tryMoveByY(GRAVITY - actualDistMoved)
+      end
+    end
   end
 
   -- Handle player x-axis movement.
@@ -388,6 +387,10 @@ function playdate.debugDraw()
     for other, _ in pairs(sprite.attached) do
       gfx.drawLine(sprite.x, sprite.y, other.x, other.y)
     end
+  end)
+  -- Label number of bodies carried by each body.
+  gfx.sprite.performOnAllSprites(function(sprite)
+    gfx.drawText(#sprite.carried, sprite.x + sprite.width / 2 + 2, sprite.y - sprite.height / 2 - 20)
   end)
   -- Label bodies with IDs.
   gfx.setImageDrawMode(gfx.kDrawModeFillWhite)

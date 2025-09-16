@@ -43,6 +43,15 @@ local PLAYER_SPEED_X <const> = 2
 local PLAYER_SPEED_Y <const> = 2
 local CRANK_SCALE <const> = 16
 
+function copySetAndPut(t, e)
+  local result = {}
+  for k in pairs(t) do
+    result[k] = true
+  end
+  result[e] = true
+  return result
+end
+
 function sign(n)
   if n < 0 then
     return -1
@@ -111,7 +120,8 @@ end
 
 -- Without moving, return the maximum distance this body can travel along the
 -- y-axis, up to goalY. Returns a value 0 through goalY.
-function Body:checkMoveByY(goalY, recursionDepth)
+function Body:checkMoveByY(goalY, recursionDepth, checked)
+  checked = checked or {}
   -- If this is a recursive call on a StaticBody, it should not move.
   if recursionDepth > 0 and self:getTag() == TAGS.static then return 0 end
   -- Recursively call checkMoveBy on any Body that is in the way.
@@ -121,11 +131,12 @@ function Body:checkMoveByY(goalY, recursionDepth)
   local minY = math.huge
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
+    if self.attached[other] then goto continue end
     local dist <const> = self:distY(other)
     assert(dist >= 0, "id="..self.id.."\tdistY="..dist)
     local signedDist <const> = sign(goalY) * dist
     local otherGoalDist <const> = goalY - signedDist
-    local otherActualDist <const> = other:checkMoveByY(otherGoalDist, recursionDepth + 1)
+    local otherActualDist <const> = other:checkMoveByY(otherGoalDist, recursionDepth + 1, checked)
     local truncY <const> = signedDist + otherActualDist
     if otherGoalDist ~= otherActualDist then
       potentiallyConstrainingBodies[other] = truncY
@@ -133,6 +144,16 @@ function Body:checkMoveByY(goalY, recursionDepth)
     if math.abs(truncY) < math.abs(minY) then
       minY = truncY
     end
+    ::continue::
+  end
+  -- Check attached bodies.
+  for other in pairs(self.attached) do
+    if checked[other] then goto continue end
+    local otherY <const> = other:checkMoveByY(goalY, 0, copySetAndPut(checked, self))
+    if math.abs(otherY) < math.abs(minY) then
+      minY = otherY
+    end
+    ::continue::
   end
   if minY < math.huge then
     local constrainingBodies = {}
@@ -153,11 +174,12 @@ function Body:markCarriedY(deltaY)
   end
 end
 
-function Body:tryMoveByY(goalY, verbose, recursionDepth)
+function Body:tryMoveByY(goalY, verbose, recursionDepth, checked)
   assert(math.type(goalY) == "integer")
+  checked = checked or {}
   recursionDepth = recursionDepth or 0
   -- Constrain movement based on how far subsequent bodies can be moved.
-  local actualY, constrainingBodies = self:checkMoveByY(goalY, recursionDepth)
+  local actualY, constrainingBodies = self:checkMoveByY(goalY, recursionDepth, checked)
   for i = 1, #constrainingBodies do
     table.insert(constrainingBodies[i].carried, self)
   end
@@ -165,13 +187,21 @@ function Body:tryMoveByY(goalY, verbose, recursionDepth)
   local _, _, collisions, numCollisions = self:checkCollisions(self.x, self.y + actualY)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
+    if self.attached[other] then goto continue end
     local dist <const> = self:distY(other)
     assert(dist >= 0, "id="..self.id.."\tdistY="..dist)
     local signedDist <const> = signY * dist
     other:tryMoveByY(actualY - signedDist, verbose, recursionDepth + 1)
+    ::continue::
   end
   if verbose and actualY ~= goalY then print("goalY="..goalY..", actualY="..actualY) end
   self:moveBy(0, actualY)
+  -- Check attached bodies.
+  for other in pairs(self.attached) do
+    if checked[other] then goto continue end
+    other:tryMoveByY(actualY, verbose, 0, copySetAndPut(checked, self))
+    ::continue::
+  end
   -- Weird exception for the sake of gamefeel: vertically stacked Bodies stick
   -- together when moving down, even if it's faster than gravity. If the
   -- carrying Body is moving up, propagation was already handled in the above
@@ -185,7 +215,8 @@ end
 
 -- Without moving, return the maximum distance this body can travel along the
 -- x-axis, up to goalX. Returns a value 0 through goalX.
-function Body:checkMoveByX(goalX, recursionDepth)
+function Body:checkMoveByX(goalX, recursionDepth, checked)
+  checked = checked or {}
   -- If this is a recursive call on a StaticBody, it should not move.
   if recursionDepth > 0 and self:getTag() == TAGS.static then return 0 end
   -- Recursively call checkMoveBy on any Body that is in the way.
@@ -194,13 +225,24 @@ function Body:checkMoveByX(goalX, recursionDepth)
   local minX = math.huge
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
+    if self.attached[other] then goto continue end
     local dist <const> = self:distX(other)
     assert(dist >= 0, "id="..self.id.."\tdistX="..dist)
     local signedDist <const> = sign(goalX) * dist
-    local truncX <const> = signedDist + other:checkMoveByX(goalX - signedDist, recursionDepth + 1)
+    local truncX <const> = signedDist + other:checkMoveByX(goalX - signedDist, recursionDepth + 1, checked)
     if math.abs(truncX) < math.abs(minX) then
       minX = truncX
     end
+    ::continue::
+  end
+  -- Check attached bodies.
+  for other in pairs(self.attached) do
+    if checked[other] then goto continue end
+    local otherX <const> = other:checkMoveByX(goalX, 0, copySetAndPut(checked, self))
+    if math.abs(otherX) < math.abs(minX) then
+      minX = otherX
+    end
+    ::continue::
   end
   if minX ~= math.huge then
     return minX
@@ -208,22 +250,31 @@ function Body:checkMoveByX(goalX, recursionDepth)
   return goalX
 end
 
-function Body:tryMoveByX(goalX, verbose, recursionDepth)
+function Body:tryMoveByX(goalX, verbose, recursionDepth, checked)
   assert(math.type(goalX) == "integer")
+  checked = checked or {}
   recursionDepth = recursionDepth or 0
   -- Constrain movement based on how far subsequent bodies can be moved.
   local signX <const> = sign(goalX)
-  local actualX = self:checkMoveByX(goalX, recursionDepth)
+  local actualX = self:checkMoveByX(goalX, recursionDepth, checked)
   local _, _, collisions, numCollisions = self:checkCollisions(self.x + actualX, self.y)
   for i = 1, numCollisions do
     local other <const> = collisions[i].other
+    if self.attached[other] then goto continue end
     local dist <const> = self:distX(other)
     assert(dist >= 0, "id="..self.id.."\tdistX="..dist)
     local signedDist <const> = signX * dist
-    other:tryMoveByX(actualX - signedDist, verbose, recursionDepth + 1)
+    other:tryMoveByX(actualX - signedDist, verbose, recursionDepth + 1, checked)
+    ::continue::
   end
   if verbose and actualX ~= goalX then print("goalX="..goalX..", actualX="..actualX) end
   self:moveBy(actualX, 0)
+  -- Check attached bodies.
+  for other in pairs(self.attached) do
+    if checked[other] then goto continue end
+    other:tryMoveByX(actualX, verbose, 0, copySetAndPut(checked, self))
+    ::continue::
+  end
   -- Move carried Bodies as if by static friction.
   --
   -- To avoid double-moving carried Bodies, sort left-to-right if moving left,
@@ -256,7 +307,8 @@ function DynamicBody:draw(x, y, w, h)
   gfx.drawRect(0, 0, self.width, self.height)
 end
 
-local fork = StaticBody(100, 180, 50, 20)
+local fork = StaticBody(200, 200, 50, 20)
+local bodyA = StaticBody(100, 80, 50, 40)
 local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
 local dynBodies = {}
 local dBodyA = DynamicBody(200, 120, 20, 20)

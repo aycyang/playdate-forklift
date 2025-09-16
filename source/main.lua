@@ -10,6 +10,10 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
+-- * conveyor belts
+-- * spawn/despawn boxes
+-- * label boxes
+-- * create game flow
 -- * draw the forklift
 -- * turn the forklift
 --
@@ -46,7 +50,18 @@ local GROUPS <const> = {
 local GRAVITY <const> = 5
 local PLAYER_SPEED_X <const> = 2
 local PLAYER_SPEED_Y <const> = 2
-local CRANK_SCALE <const> = 16
+local CRANK_SCALE <const> = 8
+
+-- TODO all dimensions must be divisible by 2 right now. It's not clear to me
+-- this is necessary, but it makes the distance calculations strictly integral,
+-- which makes it easier to reason about the calculations.
+local PLAYER_WIDTH <const> = 40
+local PLAYER_HEIGHT <const> = 6
+
+local PKG_WIDTH <const> = 30
+local PKG_HEIGHT <const> = 30
+local PALLET_WIDTH <const> = 30
+local PALLET_HEIGHT <const> = 10
 
 function copySetAndPut(t, e)
   local result = {}
@@ -306,33 +321,31 @@ function DynamicBody:draw(x, y, w, h)
   gfx.drawRect(0, 0, self.width, self.height)
 end
 
-local fork = StaticBody(200, 100, 50, 20)
-fork:setGroups(GROUPS.player)
-fork:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
-local bodyA = StaticBody(100, 80, 50, 40)
-bodyA:setGroups(GROUPS.terrain)
-local bodyB = StaticBody(300, 160, 50, 40)
-bodyB:setGroups(GROUPS.terrain)
-local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
-ground:setGroups(GROUPS.terrain)
-local dynBodies = {}
-local dBodyC = DynamicBody(200, 30, 30, 30)
-dBodyC:setGroups(GROUPS.package)
-dBodyC:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
-local dBodyB = DynamicBody(200, 90, 30, 30)
-dBodyB:setGroups(GROUPS.pallet)
-dBodyB:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
-local dBodyA = DynamicBody(200, 60, 30, 30)
-dBodyA:setGroups(GROUPS.package)
-dBodyA:setCollidesWithGroups({GROUPS.terrain, GROUPS.player, GROUPS.package})
-dBodyA:attach(dBodyB)
-table.insert(dynBodies, dBodyA)
-table.insert(dynBodies, dBodyC)
+function spawnPackage(x, y)
+  local package <const> = DynamicBody(x, y - PALLET_HEIGHT - PKG_HEIGHT/2, PKG_WIDTH, PKG_HEIGHT)
+  local pallet <const> = DynamicBody(x, y - PALLET_HEIGHT/2, PALLET_WIDTH, PALLET_HEIGHT)
+  package:attach(pallet)
+  package:setGroups(GROUPS.package)
+  package:setCollidesWithGroups({GROUPS.terrain, GROUPS.package, GROUPS.player, GROUPS.pallet})
+  pallet:setGroups(GROUPS.pallet)
+  pallet:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
+  table.insert(dynBodies, package)
+end
 
 function init()
   -- This is a global variable that accumulates crank change and dispenses the
   -- integral portion when it is less than -1 or greater than 1.
   crankChangeAccumulator = 0
+
+  ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
+  ground:setGroups(GROUPS.terrain)
+
+  fork = StaticBody(200, 150, PLAYER_WIDTH, PLAYER_HEIGHT)
+  fork:setGroups(GROUPS.player)
+  fork:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
+
+  dynBodies = {}
+  spawnPackage(100, 180)
 end
 
 function playdate.update()
@@ -352,7 +365,7 @@ function playdate.update()
     end
   else
     local change, _ = playdate.getCrankChange()
-    crankChangeAccumulator += change
+    crankChangeAccumulator -= change
     local scaledChange <const> = crankChangeAccumulator / CRANK_SCALE
     if scaledChange <= -1 then
       dy = math.ceil(scaledChange)

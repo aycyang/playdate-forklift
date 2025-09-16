@@ -58,6 +58,9 @@ local CRANK_SCALE <const> = 8
 local PLAYER_WIDTH <const> = 60
 local PLAYER_HEIGHT <const> = 10
 
+local SHELF_WIDTH <const> = 60
+local SHELF_HEIGHT <const> = 8
+
 local PKG_WIDTH <const> = 50
 local PKG_HEIGHT <const> = 40
 local PALLET_WIDTH <const> = 50
@@ -378,6 +381,11 @@ function ConveyorBelt:init(x, y, w, h, numSegments)
   end
 end
 
+function spawnShelf(x, y)
+  local shelf = StaticBody(x, y, SHELF_WIDTH, SHELF_HEIGHT)
+  shelf:setGroups(GROUPS.terrain)
+end
+
 function ConveyorBelt:update()
   for seg, d in pairs(self.segments) do
     self.segments[seg] = d + 1
@@ -397,12 +405,21 @@ function init()
   ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
   ground:setGroups(GROUPS.terrain)
 
-  fork = StaticBody(200, 150, PLAYER_WIDTH, PLAYER_HEIGHT)
+  -- Shelves
+  spawnShelf(SHELF_WIDTH / 2, 80)
+  spawnShelf(SHELF_WIDTH / 2, 150)
+  spawnShelf(playdate.display.getWidth() - SHELF_WIDTH / 2, 80)
+  spawnShelf(playdate.display.getWidth() - SHELF_WIDTH / 2, 150)
+
+  fork = StaticBody(200, 180, PLAYER_WIDTH, PLAYER_HEIGHT)
   fork:setGroups(GROUPS.player)
   fork:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
 
   dynBodies = {}
-  spawnPackage(100, 180)
+  spawnPackage(50, 210)
+  spawnPackage(50, 140)
+  spawnPackage(50, 70)
+  --spawnPackage(50, 40)
 end
 
 function playdate.update()

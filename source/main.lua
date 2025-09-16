@@ -63,6 +63,9 @@ local PKG_HEIGHT <const> = 30
 local PALLET_WIDTH <const> = 30
 local PALLET_HEIGHT <const> = 10
 
+local CONVEYOR_BELT_SEGMENT_WIDTH <const> = 6
+local CONVEYOR_BELT_SEGMENT_HEIGHT <const> = 6
+
 function copySetAndPut(t, e)
   local result = {}
   for k in pairs(t) do
@@ -332,6 +335,60 @@ function spawnPackage(x, y)
   table.insert(dynBodies, package)
 end
 
+function spawnConveyorBeltSegment(x, y)
+  local segment <const> = StaticBody(x, y, CONVEYOR_BELT_SEGMENT_WIDTH, CONVEYOR_BELT_SEGMENT_HEIGHT)
+  segment:setGroups(GROUPS.terrain)
+  segment:setCollidesWithGroups({GROUPS.package, GROUPS.pallet, GROUPS.player})
+  return segment
+end
+
+-- Starts at top left corner and travels clockwise.
+function distanceAlongRectanglePerimeter(x, y, w, h, d)
+  local xBase = x - w / 2
+  local yBase = y - h / 2
+  local dx = 0
+  local dy = 0
+  d = d % (2 * (w + h))
+  if d < w + h then
+    dx = math.min(w, d)
+    dy = math.max(0, d - w)
+  else
+    xBase = x + w / 2
+    yBase = y + h / 2
+    d -= w + h
+    dx = -math.min(w, d)
+    dy = -math.max(0, d - w)
+  end
+  return xBase + dx, yBase + dy
+end
+
+class("ConveyorBelt").extends(baseObject)
+
+function ConveyorBelt:init(x, y, w, h, numSegments)
+  self.x = x
+  self.y = y
+  self.w = w
+  self.h = h
+  self.segments = {}
+  local distBetweenSegments = math.floor(2 * (w + h) / numSegments)
+  for i = 1, numSegments do
+    local d = i * distBetweenSegments
+    local px, py = distanceAlongRectanglePerimeter(x, y, w, h, d)
+    self.segments[spawnConveyorBeltSegment(px, py)] = d
+  end
+end
+
+function ConveyorBelt:update()
+  for seg, d in pairs(self.segments) do
+    self.segments[seg] = d + 1
+  end
+  for seg, d in pairs(self.segments) do
+    local px, py = distanceAlongRectanglePerimeter(self.x, self.y, self.w, self.h, d)
+    seg:tryMoveByX(math.floor(px - seg.x))
+    seg:tryMoveByY(math.floor(py - seg.y))
+  end
+end
+
 function init()
   -- This is a global variable that accumulates crank change and dispenses the
   -- integral portion when it is less than -1 or greater than 1.
@@ -346,6 +403,8 @@ function init()
 
   dynBodies = {}
   spawnPackage(100, 180)
+
+  conveyor = ConveyorBelt(300, 180, 80, 20, 12)
 end
 
 function playdate.update()
@@ -411,9 +470,12 @@ function playdate.update()
 
   -- draw
   gfx.sprite.update()
+
+  conveyor:update()
 end
 
 function playdate.debugDraw()
+  --[[
   -- Denote constraints between bodies.
   gfx.sprite.performOnAllSprites(function(sprite)
     for other, _ in pairs(sprite.attached) do
@@ -429,6 +491,7 @@ function playdate.debugDraw()
   gfx.sprite.performOnAllSprites(function(sprite)
     gfx.drawText(sprite.id, sprite.x + sprite.width / 2 + 2, sprite.y - sprite.height / 2)
   end)
+  --]]
 end
 
 init()

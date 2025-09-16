@@ -55,8 +55,8 @@ local CRANK_SCALE <const> = 8
 -- TODO all dimensions must be divisible by 2 right now. It's not clear to me
 -- this is necessary, but it makes the distance calculations strictly integral,
 -- which makes it easier to reason about the calculations.
-local PLAYER_WIDTH <const> = 60
-local PLAYER_HEIGHT <const> = 10
+local PLAYER_WIDTH <const> = 50
+local PLAYER_HEIGHT <const> = 4
 
 local SHELF_WIDTH <const> = 60
 local SHELF_HEIGHT <const> = 8
@@ -64,7 +64,7 @@ local SHELF_HEIGHT <const> = 8
 local PKG_WIDTH <const> = 50
 local PKG_HEIGHT <const> = 40
 local PALLET_WIDTH <const> = 50
-local PALLET_HEIGHT <const> = 16
+local PALLET_HEIGHT <const> = 12
 
 local CONVEYOR_BELT_SEGMENT_WIDTH <const> = 6
 local CONVEYOR_BELT_SEGMENT_HEIGHT <const> = 6
@@ -319,16 +319,20 @@ end
 
 class("DynamicBody").extends(Body)
 
-function DynamicBody:init(x, y, w, h)
+function DynamicBody:init(x, y, w, h, label)
   DynamicBody.super.init(self, x, y, w, h, TAGS.dynamic)
+  self.label = label
 end
 
 function DynamicBody:draw(x, y, w, h)
   gfx.drawRect(0, 0, self.width, self.height)
+  if self.label then
+    gfx.drawText(self.label, self.width / 2 - 4, self.height / 2 - 8)
+  end
 end
 
-function spawnPackage(x, y)
-  local package <const> = DynamicBody(x, y - PALLET_HEIGHT - PKG_HEIGHT/2, PKG_WIDTH, PKG_HEIGHT)
+function spawnPackage(x, y, label)
+  local package <const> = DynamicBody(x, y - PALLET_HEIGHT - PKG_HEIGHT/2, PKG_WIDTH, PKG_HEIGHT, label)
   local pallet <const> = DynamicBody(x, y - PALLET_HEIGHT/2, PALLET_WIDTH, PALLET_HEIGHT)
   package:attach(pallet)
   package:setGroups(GROUPS.package)
@@ -416,9 +420,9 @@ function init()
   fork:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
 
   dynBodies = {}
-  spawnPackage(50, 210)
-  spawnPackage(50, 140)
-  spawnPackage(50, 70)
+  spawnPackage(50, 210, "C")
+  spawnPackage(50, 140, "B")
+  spawnPackage(50, 70, "A")
   --spawnPackage(50, 40)
 end
 

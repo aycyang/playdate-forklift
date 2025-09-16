@@ -55,13 +55,13 @@ local CRANK_SCALE <const> = 8
 -- TODO all dimensions must be divisible by 2 right now. It's not clear to me
 -- this is necessary, but it makes the distance calculations strictly integral,
 -- which makes it easier to reason about the calculations.
-local PLAYER_WIDTH <const> = 40
-local PLAYER_HEIGHT <const> = 6
+local PLAYER_WIDTH <const> = 60
+local PLAYER_HEIGHT <const> = 10
 
-local PKG_WIDTH <const> = 30
-local PKG_HEIGHT <const> = 30
-local PALLET_WIDTH <const> = 30
-local PALLET_HEIGHT <const> = 10
+local PKG_WIDTH <const> = 50
+local PKG_HEIGHT <const> = 40
+local PALLET_WIDTH <const> = 50
+local PALLET_HEIGHT <const> = 16
 
 local CONVEYOR_BELT_SEGMENT_WIDTH <const> = 6
 local CONVEYOR_BELT_SEGMENT_HEIGHT <const> = 6

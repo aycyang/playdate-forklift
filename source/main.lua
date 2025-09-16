@@ -403,8 +403,6 @@ function init()
 
   dynBodies = {}
   spawnPackage(100, 180)
-
-  conveyor = ConveyorBelt(300, 180, 80, 20, 12)
 end
 
 function playdate.update()
@@ -470,8 +468,6 @@ function playdate.update()
 
   -- draw
   gfx.sprite.update()
-
-  conveyor:update()
 end
 
 function playdate.debugDraw()

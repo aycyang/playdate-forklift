@@ -10,7 +10,6 @@ import "CoreLibs/object"
 import "CoreLibs/sprites"
 
 -- TODO
--- * put bodies in different groups
 -- * draw the forklift
 -- * turn the forklift
 --
@@ -35,6 +34,13 @@ local gfx <const> = playdate.graphics
 local TAGS <const> = {
   static = 1,
   dynamic = 2,
+}
+
+local GROUPS <const> = {
+  player = 1,
+  pallet = 2,
+  package = 3,
+  terrain = 4,
 }
 
 local GRAVITY <const> = 5
@@ -301,12 +307,20 @@ function DynamicBody:draw(x, y, w, h)
 end
 
 local fork = StaticBody(200, 100, 50, 20)
+fork:setGroups(GROUPS.player)
+fork:setCollidesWithGroups({GROUPS.terrain, GROUPS.package})
 local bodyA = StaticBody(100, 80, 50, 40)
+bodyA:setGroups(GROUPS.terrain)
 local bodyB = StaticBody(300, 160, 50, 40)
+bodyB:setGroups(GROUPS.terrain)
 local ground = StaticBody(200, 240, playdate.display.getWidth(), 50)
 local dynBodies = {}
-local dBodyB = DynamicBody(200, 120, 20, 20)
-local dBodyA = DynamicBody(200, 60, 20, 20)
+local dBodyB = DynamicBody(200, 90, 30, 30)
+dBodyB:setGroups(GROUPS.pallet)
+dBodyB:setCollidesWithGroups({GROUPS.terrain})
+local dBodyA = DynamicBody(200, 60, 30, 30)
+dBodyA:setGroups(GROUPS.package)
+dBodyA:setCollidesWithGroups({GROUPS.terrain, GROUPS.player})
 dBodyA:attach(dBodyB)
 table.insert(dynBodies, dBodyA)
 

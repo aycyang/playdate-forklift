@@ -466,6 +466,9 @@ function playdate.update()
   -- x-axis movement for static friction to work.
   for i = 1, #dynBodies do
     local actualDistMoved = dynBodies[i]:tryMoveByY(GRAVITY)
+    -- It's possible that the above call to tryMoveByY was constrained by an attached body.
+    -- Bodies attached to a dynamic body are not subject to gravity on their own,
+    -- but gravity should be applied to them so that the engine knows to apply static friction to them.
     if actualDistMoved < GRAVITY then
       for other in pairs(dynBodies[i].attached) do
         other:tryMoveByY(GRAVITY - actualDistMoved)
